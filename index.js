@@ -3,6 +3,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import Mongodb from 'mongodb';
+import Pusher from "pusher";
 dotenv.config();
 
 const app = express();
@@ -10,6 +11,14 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
 const MongoClient = Mongodb.MongoClient;
+
+const pusher = new Pusher({
+    appId: "1182761",
+    key: "9612bf90f1abfb61828b",
+    secret: "6003eab3f26cfed9a683",
+    cluster: "ap2",
+    useTLS: true
+  });
 
 // find al collection name
 // client.db(`${process.env.DB_NAME}`).listCollections()
@@ -25,7 +34,6 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 client.connect(err => {
     const collection = client.db(`${process.env.DB_NAME}`).collection(`${process.env.DB_COLLECTION}`);
     const accountCollection = client.db(`${process.env.DB_NAME}`).collection(`${process.env.DB_ACCOUNT}`);
-
     //   account collection
     app.post('/createAccount', (req, res) => {
         const newAccount = req.body;
@@ -72,6 +80,24 @@ client.connect(err => {
 
 
     // message
+
+    const changeStream = collection.watch();
+    changeStream.on("change", (change) => {
+        console.log(change);
+        if (change.operationType === 'insert') {
+            const messageDetails = change.fullDocument;
+            pusher.trigger('messages', 'inserted', {
+                message: messageDetails.message,
+                senderEmail: messageDetails.senderEmail,
+                receiverEmail:messageDetails.receiverEmail,
+                timesTamp: messageDetails.timesTamp
+            });
+        } else {
+            console.log('Error triggering Pusher')
+        }
+    })
+
+
     app.post('/messages/new', (req, res) => {
         const newMessage = req.body;
         collection.insertOne(newMessage)
