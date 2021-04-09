@@ -47,27 +47,28 @@ client.connect(err => {
 
     app.get('/getOneAccount/:email', (req, res) => {
         const email = req.params.email;
-        accountCollection.find({email: email})
-        .toArray((err, documents) => {
-            if (err) {
-                res.status(404).send(err);
-            } else {
-                res.status(200).send(documents[0]);
-            }
-        });
+        accountCollection.find({ email: email })
+            .toArray((err, documents) => {
+                if (err) {
+                    res.status(404).send(err);
+                } else {
+                    res.status(200).send(documents[0]);
+                }
+            });
     });
 
-    app.get('/getAccountBySearch', (req, res) => {
-        const search = req.query.search;
-        accountCollection.find({displayName: {$regex: search}})
-        .toArray((err, documents) => {
-            if (err) {
-                res.status(404).send(err);
-            } else {
-                res.status(200).send(documents);
-            }
-        });
-    });
+    // search item from database
+    // app.get('/getAccountBySearch', (req, res) => {
+    //     const search = req.query.search;
+    //     accountCollection.find({displayName: {$regex: search}})
+    //     .toArray((err, documents) => {
+    //         if (err) {
+    //             res.status(404).send(err);
+    //         } else {
+    //             res.status(200).send(documents);
+    //         }
+    //     });
+    // });
 
 
     // message
@@ -95,43 +96,41 @@ client.connect(err => {
 
     app.get('/getSpecificChatMessages/:userEmail', (req, res) => {
         const userEmail = req.params.userEmail;
-        collection.find({senderEmail:userEmail} & {receiverEmail:userEmail})
-        .toArray((err, documents) => {
-            if (err) {
-                res.status(404).send(err);
-            } else {
-                const senderAndReceiver = documents.map(document =>  {
-                    if (document.receiverEmail !== userEmail) {
-                        return document.receiverEmail;
-                    } else if (document.senderEmail !== userEmail){
-                        return document.receiverEmail
-                    }
-                });
-                const friends = senderAndReceiver.filter(email => email !== userEmail);
-                const friendsEmail = friends.filter((email, index) => {
-                    return friends.indexOf(email) === index;
-                });
-                res.status(200).send(friendsEmail);
-            }
-        })
+        collection.find({ senderEmail: userEmail } & { receiverEmail: userEmail })
+            .toArray((err, documents) => {
+                if (err) {
+                    res.status(404).send(err);
+                } else {
+                    const senderAndReceiver = documents.map(document => {
+                        if (document.receiverEmail !== userEmail) {
+                            return document.receiverEmail;
+                        } else if (document.senderEmail !== userEmail) {
+                            return document.receiverEmail
+                        }
+                    });
+                    const friends = senderAndReceiver.filter(email => email !== userEmail);
+                    const friendsEmail = friends.filter((email, index) => {
+                        return friends.indexOf(email) === index;
+                    });
+                    res.status(200).send(friendsEmail);
+                }
+            })
     });
 
     app.get('/getSpecificConversation/:userEmail/:friendEmail', (req, res) => {
         const userEmail = req.params.userEmail;
         const friendEmail = req.params.friendEmail;
 
-        collection.find({senderEmail:userEmail, receiverEmail:friendEmail} & {senderEmail:friendEmail, receiverEmail:userEmail})
-        .toArray((err, documents) => {
-            if (err) {
-                res.status(404).send(err);
-            } else {
-                res.status(200).send(documents);
-            }
-        });
+        collection.find({ $or: [{ $and: [{ senderEmail: userEmail }, { receiverEmail: friendEmail }] }, { $and: [{ senderEmail: friendEmail }, { receiverEmail: userEmail }] }] })
+            .toArray((err, documents) => {
+                if (err) {
+                    res.status(404).send(err);
+                } else {
+                    res.status(200).send(documents);
+                }
+            });
     });
-
 });
-
 
 
 app.listen(process.env.PORT || 5000, () => console.log('Server running'));
