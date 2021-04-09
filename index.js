@@ -57,6 +57,18 @@ client.connect(err => {
         });
     });
 
+    app.get('/getAccountBySearch', (req, res) => {
+        const search = req.query.search;
+        accountCollection.find({displayName: {$regex: search}})
+        .toArray((err, documents) => {
+            if (err) {
+                res.status(404).send(err);
+            } else {
+                res.status(200).send(documents);
+            }
+        });
+    });
+
 
     // message
     app.post('/messages/new', (req, res) => {
