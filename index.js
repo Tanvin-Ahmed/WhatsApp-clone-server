@@ -55,7 +55,7 @@ client.connect(err => {
 
     app.get('/getOneAccount/:email', (req, res) => {
         const email = req.params.email;
-        accountCollection.find({ email: email })
+        accountCollection.find({ email })
             .toArray((err, documents) => {
                 if (err) {
                     res.status(404).send(err);
@@ -119,7 +119,7 @@ client.connect(err => {
                 }
             });
     });
-
+    
     app.get('/getSpecificChatMessages/:userEmail', (req, res) => {
         const userEmail = req.params.userEmail;
         collection.find({ senderEmail: userEmail } & { receiverEmail: userEmail })
