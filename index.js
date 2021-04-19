@@ -18,7 +18,7 @@ const pusher = new Pusher({
     secret: "6003eab3f26cfed9a683",
     cluster: "ap2",
     useTLS: true
-  });
+});
 
 // find al collection name
 // client.db(`${process.env.DB_NAME}`).listCollections()
@@ -34,6 +34,25 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 client.connect(err => {
     const collection = client.db(`${process.env.DB_NAME}`).collection(`${process.env.DB_COLLECTION}`);
     const accountCollection = client.db(`${process.env.DB_NAME}`).collection(`${process.env.DB_ACCOUNT}`);
+
+    /////////////////GET RESPONSE FROM PUSHER////////////////
+    const changeStream = collection.watch();
+    changeStream.on("change", (change) => {
+        if (change.operationType === 'insert') {
+            const messageDetails = change.fullDocument;
+            pusher.trigger('messages', 'inserted', {
+                message: messageDetails.message,
+                senderEmail: messageDetails.senderEmail,
+                receiverEmail: messageDetails.receiverEmail,
+                timesTamp: messageDetails.timesTamp
+            });
+        } else {
+            console.log('Error triggering Pusher')
+        }
+    })
+
+
+    ///////////////////POST//////////////////
     //   account collection
     app.post('/createAccount', (req, res) => {
         const newAccount = req.body;
@@ -41,6 +60,21 @@ client.connect(err => {
             .then(success => res.status(201).send(success.insertedCount > 0))
             .catch(err => res.status(500).send(err));
     })
+
+
+    app.post('/messages/new', (req, res) => {
+        const newMessage = req.body;
+        collection.insertOne(newMessage)
+            .then(data => {
+                res.status(201).send(data.insertedCount > 0);
+            })
+            .catch(err => {
+                res.status(500).send(err);
+            });
+    });
+
+
+    ////////////////////////GET////////////////
 
     app.get('/getAllAccount', (req, res) => {
         accountCollection.find()
@@ -81,33 +115,8 @@ client.connect(err => {
 
     // message
 
-    const changeStream = collection.watch();
-    changeStream.on("change", (change) => {
-        console.log(change);
-        if (change.operationType === 'insert') {
-            const messageDetails = change.fullDocument;
-            pusher.trigger('messages', 'inserted', {
-                message: messageDetails.message,
-                senderEmail: messageDetails.senderEmail,
-                receiverEmail:messageDetails.receiverEmail,
-                timesTamp: messageDetails.timesTamp
-            });
-        } else {
-            console.log('Error triggering Pusher')
-        }
-    })
 
 
-    app.post('/messages/new', (req, res) => {
-        const newMessage = req.body;
-        collection.insertOne(newMessage)
-            .then(data => {
-                res.status(201).send(data.insertedCount > 0);
-            })
-            .catch(err => {
-                res.status(500).send(err);
-            });
-    });
 
     app.get('/getAllMessageInfo', (req, res) => {
         collection.find()
@@ -119,10 +128,10 @@ client.connect(err => {
                 }
             });
     });
-    
+
     app.get('/getSpecificChatMessages/:userEmail', (req, res) => {
         const userEmail = req.params.userEmail;
-        collection.find({ senderEmail: userEmail } & { receiverEmail: userEmail })
+        collection.find({ $or: [{ senderEmail: userEmail }, { receiverEmail: userEmail }] })
             .toArray((err, documents) => {
                 if (err) {
                     res.status(404).send(err);
@@ -156,6 +165,18 @@ client.connect(err => {
                 }
             });
     });
+
+    ///////////////DELETE////////////
+    app.delete('/clearConversation', (req, res) => {
+        const conversation = req.body.conversation;
+        const userEmail = conversation.userEmail;
+        const friendEmail = conversation.friendEmail;
+        collection.deleteMany({ $or: [{ $and: [{ senderEmail: userEmail }, { receiverEmail: friendEmail }] }, { $and: [{ senderEmail: friendEmail }, { receiverEmail: userEmail }] }] })
+            .then(result => res.status(200).send(result.deletedCount > 0))
+            .catch(err => res.status(404).send(err));
+    });
+
+
 });
 
 
